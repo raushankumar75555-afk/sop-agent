@@ -31,7 +31,7 @@ export function useHistory() {
     }
   }, []);
 
-  const addHistory = useCallback(async (item: Omit<HistoryItem, 'id' | 'created_at'>) => {
+  const addHistory = useCallback(async (item: Omit<HistoryItem, 'id' | 'created_at'> & { user_tag?: string }) => {
     try {
       const { error } = await supabase.from('history').insert(item);
       if (error) throw error;
