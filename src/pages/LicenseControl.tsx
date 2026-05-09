@@ -10,16 +10,25 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/lib/supabase';
-import type { WhoKeyData } from '@/types';
+import type { } from '@/types';
+
+interface KeyEntry {
+  key: string;
+  role: string;
+  label: string;
+  is_active: boolean;
+  created_at: string;
+  brokerage?: string;
+}
 
 interface ClientGroup {
   brokerage: string;
-  editorKey: WhoKeyData | null;
-  teamKey: WhoKeyData | null;
+  editorKey: KeyEntry | null;
+  teamKey: KeyEntry | null;
   isPaused: boolean;
 }
 
-function groupByBrokerage(keys: WhoKeyData[]): ClientGroup[] {
+function groupByBrokerage(keys: KeyEntry[]): ClientGroup[] {
   const map = new Map<string, ClientGroup>();
   for (const k of keys) {
     if (k.role === 'owner') continue;
