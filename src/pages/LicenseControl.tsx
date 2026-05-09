@@ -45,7 +45,7 @@ function groupByBrokerage(keys: KeyEntry[]): ClientGroup[] {
 }
 
 export default function LicenseControl() {
-  const [keys, setKeys] = useState<WhoKeyData[]>([]);
+  const [keys, setKeys] = useState<KeyEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [clientName, setClientName] = useState('');
