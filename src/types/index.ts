@@ -53,6 +53,7 @@ export interface AuthState {
   role: UserRole | null;
   label: string | null;
   isLoading: boolean;
+  brokerage: string | null;
 }
 
 export interface HealthStatus {
