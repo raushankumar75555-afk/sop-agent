@@ -9,6 +9,7 @@ export interface WhoKeyData {
   label: string;
   is_active: boolean;
   created_at: string;
+  brokerage?: string;
 }
 
 export interface AppSettings {
