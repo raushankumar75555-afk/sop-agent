@@ -1,6 +1,5 @@
 // ============================================
 // SOP Agent Pro - Login Screen (WhoKey Entry)
-// No passwords. Key IS identity.
 // ============================================
 import { useState } from 'react';
 import { Key, Shield, Building2, Users, AlertCircle } from 'lucide-react';
@@ -12,6 +11,7 @@ import { useAuthStore } from '@/hooks/useAuth';
 
 export default function LoginScreen() {
   const [key, setKey] = useState('');
+  const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const login = useAuthStore((s) => s.login);
@@ -19,19 +19,13 @@ export default function LoginScreen() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
-    
     const trimmed = key.trim().toUpperCase();
-    if (!trimmed) {
-      setError('Please enter your WhoKey');
-      setLoading(false);
-      return;
-    }
-
-    const success = await login(trimmed);
-    if (!success) {
-      setError('Invalid or inactive WhoKey. Please check with your Owner.');
-    }
+    const trimmedName = name.trim();
+    if (!trimmed) { setError('Please enter your WhoKey'); return; }
+    if (!trimmedName) { setError('Please enter your first name'); return; }
+    setLoading(true);
+    const success = await login(trimmed, trimmedName);
+    if (!success) setError('Invalid or inactive WhoKey. Please check with your Owner.');
     setLoading(false);
   };
 
@@ -49,9 +43,7 @@ export default function LoginScreen() {
         <Card className="shadow-xl border-0">
           <CardHeader className="space-y-1">
             <CardTitle className="text-xl">Enter Your WhoKey</CardTitle>
-            <CardDescription>
-              No password needed. Your key is your identity.
-            </CardDescription>
+            <CardDescription>No password needed. Your key is your identity.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -65,6 +57,16 @@ export default function LoginScreen() {
                   disabled={loading}
                 />
               </div>
+              <div className="relative">
+                <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Your first name (e.g. Sarah)"
+                  className="pl-10 text-sm"
+                  disabled={loading}
+                />
+              </div>
 
               {error && (
                 <Alert variant="destructive">
@@ -73,11 +75,7 @@ export default function LoginScreen() {
                 </Alert>
               )}
 
-              <Button 
-                type="submit" 
-                className="w-full bg-indigo-600 hover:bg-indigo-700"
-                disabled={loading}
-              >
+              <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700" disabled={loading}>
                 {loading ? 'Verifying...' : 'Access Tool'}
               </Button>
             </form>
