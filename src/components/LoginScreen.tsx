@@ -60,7 +60,7 @@ export default function LoginScreen() {
                 <Input
                   value={key}
                   onChange={(e) => setKey(e.target.value)}
-                  placeholder="e.g., RK-ADMIN-2026-X9"
+                  placeholder="Enter your WhoKey"
                   className="pl-10 font-mono text-sm uppercase"
                   disabled={loading}
                 />
