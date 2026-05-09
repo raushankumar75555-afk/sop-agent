@@ -93,13 +93,13 @@ export default function AskAgent() {
       setMessages((prev) => [...prev, { role: 'assistant', content: answer, timestamp: Date.now() }]);
 
       await addHistory({
-        license_key: key,
-        role: role!,
-        label: '',
-        user_tag: userName || key,
-        question: text,
-        answer,
-      });
+  license_key: key,
+  role: role!,
+  label: '',
+  user_tag: userName || key,
+  question: text,
+  answer,
+});
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Failed to get response';
       setError(errMsg);
