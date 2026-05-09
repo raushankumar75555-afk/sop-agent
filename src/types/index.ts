@@ -1,8 +1,6 @@
 // ============================================
 // SOP Agent Pro - TypeScript Types
-// Australian P&C Insurance SOP Management
 // ============================================
-
 export type UserRole = 'owner' | 'editor' | 'team';
 
 export interface WhoKeyData {
@@ -36,6 +34,7 @@ export interface HistoryItem {
   license_key: string;
   role: UserRole;
   label: string;
+  user_tag: string;
   question: string;
   answer: string;
   created_at: string;
@@ -72,34 +71,16 @@ export interface TrainingExample {
 
 export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   owner: [
-    'ask_agent',
-    'manage_sops',
-    'browse_sops',
-    'view_history',
-    'clear_own_history',
-    'clear_all_history',
-    'view_all_history',
-    'view_diagnostics',
-    'view_ai_training',
-    'manage_licenses',
-    'owner_toggles',
-    'dark_mode',
-    'reset_tool',
-    'export_data',
+    'ask_agent', 'manage_sops', 'browse_sops', 'view_history',
+    'clear_own_history', 'clear_all_history', 'view_all_history',
+    'view_diagnostics', 'view_ai_training', 'manage_licenses',
+    'owner_toggles', 'dark_mode', 'reset_tool', 'export_data',
   ],
   editor: [
-    'ask_agent',
-    'manage_sops',
-    'browse_sops',
-    'view_history',
-    'clear_own_history',
-    'dark_mode',
+    'ask_agent', 'manage_sops', 'browse_sops', 'view_history',
+    'clear_own_history', 'dark_mode',
   ],
-  team: [
-    'ask_agent',
-    'browse_sops',
-    'dark_mode',
-  ],
+  team: ['ask_agent', 'browse_sops', 'dark_mode'],
 };
 
 export function hasPermission(role: UserRole, permission: string): boolean {
@@ -108,19 +89,14 @@ export function hasPermission(role: UserRole, permission: string): boolean {
 
 export function parseKey(key: string): { role: UserRole; brokerage: string } | null {
   if (!key || key.length < 10) return null;
-  
-  if (key.startsWith('RK-ADMIN-')) {
-    return { role: 'owner', brokerage: 'admin' };
-  }
+  if (key.startsWith('RK-ADMIN-')) return { role: 'owner', brokerage: 'admin' };
   if (key.startsWith('SOP-EDIT-')) {
     const parts = key.split('-');
-    const brokerage = parts[2] || 'default';
-    return { role: 'editor', brokerage };
+    return { role: 'editor', brokerage: parts[2] || 'default' };
   }
   if (key.startsWith('SOP-TEAM-')) {
     const parts = key.split('-');
-    const brokerage = parts[2] || 'default';
-    return { role: 'team', brokerage };
+    return { role: 'team', brokerage: parts[2] || 'default' };
   }
   return null;
 }
