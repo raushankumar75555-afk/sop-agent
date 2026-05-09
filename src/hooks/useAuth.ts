@@ -14,6 +14,7 @@ interface AuthStore extends AuthState {
   toolActive: boolean;
   sopLockdown: boolean;
   userName: string | null;
+  brokerage: string | null;
   login: (key: string, name?: string) => Promise<boolean>;
   logout: () => void;
   checkStatus: () => Promise<void>;
@@ -27,6 +28,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
   role: null,
   label: null,
   userName: null,
+  brokerage: null,
   isLoading: true,
   toolActive: true,
   sopLockdown: false,
@@ -38,12 +40,18 @@ export const useAuthStore = create<AuthStore>((set) => ({
       const tag = generateUserTag(name || 'User');
       storeName(tag);
       const status = await checkToolStatus();
+      // Extract brokerage from key format
+      const parts = key.split('-');
+      const brokerage = key.startsWith('RK-ADMIN-') ? 'OWNER'
+        : key.startsWith('SOP-EDIT-') || key.startsWith('SOP-TEAM-') ? parts[2]
+        : 'OWNER';
       set({
         isAuthenticated: true,
         key,
         role: result.role,
         label: result.label || '',
         userName: tag,
+        brokerage,
         toolActive: status.active,
         sopLockdown: status.lockdown,
         isLoading: false,
@@ -56,7 +64,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
   logout: () => {
     clearKey();
     clearName();
-    set({ isAuthenticated: false, key: null, role: null, label: null, userName: null, isLoading: false });
+    set({ isAuthenticated: false, key: null, role: null, label: null, userName: null, brokerage: null, isLoading: false });
   },
 
   checkStatus: async () => {
@@ -78,12 +86,17 @@ export function useAuthInit() {
         const result = await validateKey(stored);
         if (result.valid && result.role) {
           const status = await checkToolStatus();
+          const parts = stored.split('-');
+          const brokerage = stored.startsWith('RK-ADMIN-') ? 'OWNER'
+            : stored.startsWith('SOP-EDIT-') || stored.startsWith('SOP-TEAM-') ? parts[2]
+            : 'OWNER';
           useAuthStore.setState({
             isAuthenticated: true,
             key: stored,
             role: result.role,
             label: result.label || '',
             userName: storedName || 'User#0000',
+            brokerage,
             toolActive: status.active,
             sopLockdown: status.lockdown,
             isLoading: false,
