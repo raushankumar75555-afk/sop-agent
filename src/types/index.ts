@@ -34,7 +34,7 @@ export interface HistoryItem {
   license_key: string;
   role: UserRole;
   label: string;
-  user_tag: string;
+  user_tag?: string;
   question: string;
   answer: string;
   created_at: string;
