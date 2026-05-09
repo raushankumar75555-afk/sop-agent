@@ -4,12 +4,17 @@
 import { create } from 'zustand';
 import { useEffect } from 'react';
 import type { AuthState } from '@/types';
-import { getStoredKey, storeKey, clearKey, validateKey, checkToolStatus } from '@/lib/auth';
+import {
+  getStoredKey, storeKey, clearKey,
+  validateKey, checkToolStatus,
+  storeName, getStoredName, clearName, generateUserTag,
+} from '@/lib/auth';
 
 interface AuthStore extends AuthState {
   toolActive: boolean;
   sopLockdown: boolean;
-  login: (key: string) => Promise<boolean>;
+  userName: string | null;
+  login: (key: string, name?: string) => Promise<boolean>;
   logout: () => void;
   checkStatus: () => Promise<void>;
   setToolActive: (active: boolean) => void;
@@ -21,23 +26,27 @@ export const useAuthStore = create<AuthStore>((set) => ({
   key: null,
   role: null,
   label: null,
+  userName: null,
   isLoading: true,
   toolActive: true,
   sopLockdown: false,
 
-  login: async (key: string) => {
+  login: async (key: string, name?: string) => {
     const result = await validateKey(key);
     if (result.valid && result.role) {
       storeKey(key);
+      const tag = generateUserTag(name || 'User');
+      storeName(tag);
       const status = await checkToolStatus();
-      set({ 
-        isAuthenticated: true, 
-        key, 
-        role: result.role, 
+      set({
+        isAuthenticated: true,
+        key,
+        role: result.role,
         label: result.label || '',
+        userName: tag,
         toolActive: status.active,
         sopLockdown: status.lockdown,
-        isLoading: false 
+        isLoading: false,
       });
       return true;
     }
@@ -46,13 +55,8 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
   logout: () => {
     clearKey();
-    set({ 
-      isAuthenticated: false, 
-      key: null, 
-      role: null, 
-      label: null,
-      isLoading: false 
-    });
+    clearName();
+    set({ isAuthenticated: false, key: null, role: null, label: null, userName: null, isLoading: false });
   },
 
   checkStatus: async () => {
@@ -66,18 +70,32 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
 export function useAuthInit() {
   const store = useAuthStore();
-
   useEffect(() => {
     const init = async () => {
       const stored = getStoredKey();
+      const storedName = getStoredName();
       if (stored) {
-        await store.login(stored);
+        const result = await validateKey(stored);
+        if (result.valid && result.role) {
+          const status = await checkToolStatus();
+          useAuthStore.setState({
+            isAuthenticated: true,
+            key: stored,
+            role: result.role,
+            label: result.label || '',
+            userName: storedName || 'User#0000',
+            toolActive: status.active,
+            sopLockdown: status.lockdown,
+            isLoading: false,
+          });
+        } else {
+          useAuthStore.setState({ isLoading: false });
+        }
       } else {
         useAuthStore.setState({ isLoading: false });
       }
     };
     init();
   }, []);
-
   return store;
 }
