@@ -82,7 +82,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     'ask_agent', 'manage_sops', 'browse_sops', 'view_history',
     'clear_own_history', 'dark_mode',
   ],
-  team: ['ask_agent', 'browse_sops', 'dark_mode'],
+  team: ['ask_agent', 'browse_sops', 'view_history', 'clear_own_history', 'dark_mode'],
 };
 
 export function hasPermission(role: UserRole, permission: string): boolean {
