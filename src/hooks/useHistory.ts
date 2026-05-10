@@ -1,60 +1,79 @@
 // ============================================
 // SOP Agent Pro - History Hook
+// Filtered by role for data isolation
 // ============================================
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/hooks/useAuth';
 import type { HistoryItem } from '@/types';
 
 export function useHistory() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const role = useAuthStore((s) => s.role);
+  const key = useAuthStore((s) => s.key);
+  const brokerage = useAuthStore((s) => s.brokerage);
 
   const fetchHistory = useCallback(async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      let query = supabase
         .from('history')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(200);
 
+      if (role === 'owner') {
+        // Owner sees everything — no filter
+      } else if (role === 'editor') {
+        // Editor sees only their brokerage
+        query = query.ilike('license_key', `SOP-EDIT-${brokerage}%`);
+      } else if (role === 'team') {
+        // Team sees only their own key
+        query = query.eq('license_key', key || '');
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       setHistory(data || []);
     } catch {
-      // Fallback
       try {
         const local = JSON.parse(localStorage.getItem('sop_agent_v6_history') || '[]');
         setHistory(local);
-      } catch { /* ignore */ }
+      } catch { }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [role, key, brokerage]);
 
   const addHistory = useCallback(async (item: Omit<HistoryItem, 'id' | 'created_at'> & { user_tag?: string }) => {
     try {
       const { error } = await supabase.from('history').insert(item);
       if (error) throw error;
     } catch {
-      // Fallback to localStorage
       try {
         const local = JSON.parse(localStorage.getItem('sop_agent_v6_history') || '[]');
         local.unshift({ ...item, id: crypto.randomUUID(), created_at: new Date().toISOString() });
         localStorage.setItem('sop_agent_v6_history', JSON.stringify(local.slice(0, 200)));
-      } catch { /* ignore */ }
+      } catch { }
     }
   }, []);
 
   const clearHistory = useCallback(async (keyFilter?: string) => {
     try {
       let query = supabase.from('history').delete();
-      if (keyFilter) query = query.eq('license_key', keyFilter);
+      if (keyFilter) {
+        query = query.eq('license_key', keyFilter);
+      } else if (role === 'editor') {
+        query = query.ilike('license_key', `SOP-EDIT-${brokerage}%`);
+      } else if (role === 'team') {
+        query = query.eq('license_key', key || '');
+      }
       const { error } = await query;
       if (error) throw error;
       await fetchHistory();
       return true;
     } catch {
-      // Fallback
       try {
         if (keyFilter) {
           const local = JSON.parse(localStorage.getItem('sop_agent_v6_history') || '[]');
@@ -69,7 +88,7 @@ export function useHistory() {
         return false;
       }
     }
-  }, [fetchHistory]);
+  }, [fetchHistory, role, key, brokerage]);
 
   useEffect(() => {
     fetchHistory();
