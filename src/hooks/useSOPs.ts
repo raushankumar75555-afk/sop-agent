@@ -36,31 +36,66 @@ export function useSOPs() {
   }, [role, brokerage]);
 
   const saveSOP = useCallback(async (sop: Partial<SOP>) => {
+  try {
+    // Auto-structure the content using AI before saving
+    let structuredContent = sop.content || '';
     try {
-      if (sop.id) {
-        const { error } = await supabase.from('sops').update({
-          title: sop.title,
-          content: sop.content,
-          category: sop.category,
-          updated_at: new Date().toISOString(),
-        }).eq('id', sop.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('sops').insert({
-          title: sop.title,
-          content: sop.content,
-          category: sop.category || 'General',
-          created_by: 'SOP Editor',
-          brokerage: role === 'owner' ? 'OWNER' : (brokerage || 'OWNER'),
-        });
-        if (error) throw error;
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{
+            role: 'user',
+            content: `You are an SOP formatter. Take this raw SOP content and rewrite it as a single connected procedure. 
+Rules:
+- Add "Procedure (follow all steps):" as the first line
+- Number each step clearly
+- Connect related steps with "If/Then" language
+- Add a "Note:" at the end listing any conditions or exceptions
+- Keep the original meaning exactly, just improve structure
+- Return ONLY the formatted SOP, nothing else
+
+Raw SOP:
+Title: ${sop.title}
+${sop.content}`
+          }]
+        })
+      });
+      const data = await res.json();
+      if (data.content?.[0]?.text) {
+        structuredContent = data.content[0].text;
       }
-      await fetchSOPs();
-      return true;
     } catch {
-      return false;
+      // If AI structuring fails, save original content
+      structuredContent = sop.content || '';
     }
-  }, [fetchSOPs, role, brokerage]);
+
+    if (sop.id) {
+      const { error } = await supabase.from('sops').update({
+        title: sop.title,
+        content: structuredContent,
+        category: sop.category,
+        updated_at: new Date().toISOString(),
+      }).eq('id', sop.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from('sops').insert({
+        title: sop.title,
+        content: structuredContent,
+        category: sop.category || 'General',
+        created_by: 'SOP Editor',
+        brokerage: role === 'owner' ? 'OWNER' : (brokerage || 'OWNER'),
+      });
+      if (error) throw error;
+    }
+    await fetchSOPs();
+    return true;
+  } catch {
+    return false;
+  }
+}, [fetchSOPs, role, brokerage]);
 
   const deleteSOP = useCallback(async (id: string) => {
     try {
