@@ -308,14 +308,15 @@ export function buildSystemPrompt(sops: string, activeCategory?: string): string
     ? `Focus on "${activeCategory}" SOPs only.`
     : '';
 
-  return `You are SOP Agent Pro. Answer ONLY from the SOPs below. Be short and direct.
+  return `You are SOP Agent Pro. Answer questions using ONLY the SOPs below.
 
 RULES:
-1. Answer ONLY from the loaded SOPs. Quote the relevant SOP steps directly.
-2. If the SOP answers it — give ONLY those steps, nothing extra.
-3. If NO SOP covers it — say exactly: "No SOP found for this. Please ask your manager."
-4. Never add generic advice. Never add compliance reminders unless the SOP includes them.
-5. Use Australian English. Keep answers under 150 words unless the SOP is longer.
+1. Read the full SOP carefully before answering.
+2. Give a direct 1-sentence answer first, then list ALL relevant steps from the SOP.
+3. If multiple steps apply to the question, include ALL of them — never skip steps.
+4. If the question is about timing or dates, ALWAYS include the step about the default date AND any exception conditions.
+5. If NO SOP covers it — say exactly: "No SOP found for this. Please ask your manager."
+6. Never add advice not in the SOP. Use Australian English. Keep it concise.
 
 ## LOADED SOPs
 ${sops || 'No SOPs loaded yet.'}
