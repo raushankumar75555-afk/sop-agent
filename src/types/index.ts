@@ -28,6 +28,8 @@ export interface SOP {
   created_by: string;
   created_at: string;
   updated_at: string;
+  brokerage?: string;
+  plain_text?: string;
 }
 
 export interface HistoryItem {
