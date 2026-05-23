@@ -1,15 +1,17 @@
 // ============================================
 // SOP Agent Pro - License Control Page
-// Client-based: Editor + Team keys together
+// Owner: create clients (editor + team keys)
+// Editor: create additional team keys for their brokerage
 // ============================================
 import { useState, useEffect } from 'react';
-import { Shield, Plus, Trash2, Copy, CheckCircle, Key, RefreshCw, Pause, Play, Building2 } from 'lucide-react';
+import { Shield, Plus, Trash2, Copy, CheckCircle, Key, RefreshCw, Pause, Play, Building2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/hooks/useAuth';
 
 interface KeyEntry {
   key: string;
@@ -23,7 +25,7 @@ interface KeyEntry {
 interface ClientGroup {
   brokerage: string;
   editorKey: KeyEntry | null;
-  teamKey: KeyEntry | null;
+  teamKeys: KeyEntry[];
   isPaused: boolean;
 }
 
@@ -33,31 +35,47 @@ function groupByBrokerage(keys: KeyEntry[]): ClientGroup[] {
     if (k.role === 'owner') continue;
     const b = k.brokerage || 'UNKNOWN';
     if (!map.has(b)) {
-      map.set(b, { brokerage: b, editorKey: null, teamKey: null, isPaused: false });
+      map.set(b, { brokerage: b, editorKey: null, teamKeys: [], isPaused: false });
     }
     const group = map.get(b)!;
     if (k.role === 'editor') group.editorKey = k;
-    if (k.role === 'team') group.teamKey = k;
+    if (k.role === 'team') group.teamKeys.push(k);
     if (!k.is_active) group.isPaused = true;
   }
   return Array.from(map.values());
 }
 
 export default function LicenseControl() {
+  const role = useAuthStore((s) => s.role);
+  const brokerage = useAuthStore((s) => s.brokerage);
+
   const [keys, setKeys] = useState<KeyEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isAddTeamOpen, setIsAddTeamOpen] = useState(false);
   const [clientName, setClientName] = useState('');
+  const [teamMemberName, setTeamMemberName] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
   const [newKeys, setNewKeys] = useState<{ editor: string; team: string } | null>(null);
+  const [newTeamKey, setNewTeamKey] = useState<string | null>(null);
+
+  const isOwner = role === 'owner';
+  const isEditor = role === 'editor';
 
   const fetchKeys = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      let query = supabase
         .from('licenses')
         .select('*')
         .order('created_at', { ascending: false });
+
+      // Editors only see their own brokerage keys
+      if (isEditor && brokerage) {
+        query = query.eq('brokerage', brokerage);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       setKeys(data || []);
     } catch {
@@ -67,6 +85,7 @@ export default function LicenseControl() {
     }
   };
 
+  // Owner creates a full client (editor + team key pair)
   const createClient = async () => {
     if (!clientName.trim()) return;
     const code = clientName.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
@@ -91,9 +110,39 @@ export default function LicenseControl() {
     await fetchKeys();
   };
 
+  // Editor creates an additional team key for their own brokerage
+  const createTeamKey = async () => {
+    if (!brokerage) return;
+    const rand = () => Math.random().toString(36).substring(2, 6).toUpperCase();
+    const teamKey = `SOP-TEAM-${brokerage}-${rand()}`;
+    const label = teamMemberName.trim()
+      ? `${teamMemberName} - Team Member`
+      : `${brokerage} - Team Member`;
+
+    try {
+      const { error } = await supabase.from('licenses').insert({
+        key: teamKey,
+        role: 'team',
+        label,
+        brokerage,
+        is_active: true,
+        created_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+      setNewTeamKey(teamKey);
+      setTeamMemberName('');
+      await fetchKeys();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const pauseClient = async (group: ClientGroup) => {
     const newActive = group.isPaused;
-    const keysToUpdate = [group.editorKey?.key, group.teamKey?.key].filter(Boolean);
+    const keysToUpdate = [
+      group.editorKey?.key,
+      ...group.teamKeys.map(k => k.key),
+    ].filter(Boolean);
     for (const k of keysToUpdate) {
       await supabase.from('licenses').update({ is_active: newActive }).eq('key', k);
     }
@@ -101,11 +150,20 @@ export default function LicenseControl() {
   };
 
   const deleteClient = async (group: ClientGroup) => {
-    if (!confirm(`Delete client "${group.brokerage}" and both their keys? This cannot be undone.`)) return;
-    const keysToDelete = [group.editorKey?.key, group.teamKey?.key].filter(Boolean);
+    if (!confirm(`Delete client "${group.brokerage}" and ALL their keys? This cannot be undone.`)) return;
+    const keysToDelete = [
+      group.editorKey?.key,
+      ...group.teamKeys.map(k => k.key),
+    ].filter(Boolean);
     for (const k of keysToDelete) {
       await supabase.from('licenses').delete().eq('key', k);
     }
+    await fetchKeys();
+  };
+
+  const deleteSingleKey = async (key: string) => {
+    if (!confirm('Remove this team key? The user will lose access immediately.')) return;
+    await supabase.from('licenses').delete().eq('key', key);
     await fetchKeys();
   };
 
@@ -128,7 +186,9 @@ export default function LicenseControl() {
             License Control
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Each client gets one Editor key and one Team key.
+            {isOwner
+              ? 'Each client gets one Editor key and one Team key.'
+              : `Managing team keys for brokerage: ${brokerage}`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -136,19 +196,36 @@ export default function LicenseControl() {
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
           </Button>
-          <Button onClick={() => { setNewKeys(null); setIsCreateOpen(true); }}>
-            <Plus className="w-4 h-4 mr-2" />
-            New Client
-          </Button>
+          {isOwner && (
+            <Button onClick={() => { setNewKeys(null); setIsCreateOpen(true); }}>
+              <Plus className="w-4 h-4 mr-2" />
+              New Client
+            </Button>
+          )}
+          {isEditor && (
+            <Button onClick={() => { setNewTeamKey(null); setIsAddTeamOpen(true); }}>
+              <Users className="w-4 h-4 mr-2" />
+              Add Team Member
+            </Button>
+          )}
         </div>
       </div>
 
+      {/* Editor view — simplified, only their brokerage */}
+      {isEditor && (
+        <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm text-blue-700 dark:text-blue-400">
+          You can create additional team member keys for your brokerage. Each team member gets their own key for individual history tracking.
+        </div>
+      )}
+
       {loading ? (
-        <div className="text-center py-12 text-slate-500">Loading clients...</div>
+        <div className="text-center py-12 text-slate-500">Loading...</div>
       ) : clients.length === 0 ? (
         <div className="text-center py-12">
           <Key className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-500">No clients yet. Create your first client.</p>
+          <p className="text-slate-500">
+            {isOwner ? 'No clients yet. Create your first client.' : 'No keys found for your brokerage.'}
+          </p>
         </div>
       ) : (
         <div className="grid gap-4">
@@ -159,51 +236,76 @@ export default function LicenseControl() {
                   <div className="flex items-center gap-2">
                     <Building2 className="w-5 h-5 text-indigo-600" />
                     <span className="font-semibold text-slate-900 dark:text-white text-lg">{group.brokerage}</span>
+                    <Badge variant="outline" className="text-xs">{group.teamKeys.length + (group.editorKey ? 1 : 0)} keys</Badge>
                     {group.isPaused && <Badge variant="destructive" className="text-xs">Paused</Badge>}
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => pauseClient(group)}
-                      className={group.isPaused ? 'text-emerald-600 border-emerald-300' : 'text-amber-600 border-amber-300'}
-                    >
-                      {group.isPaused ? <><Play className="w-3 h-3 mr-1" />Resume</> : <><Pause className="w-3 h-3 mr-1" />Pause</>}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => deleteClient(group)}
-                      className="text-red-600 border-red-300"
-                    >
-                      <Trash2 className="w-3 h-3 mr-1" />Remove
-                    </Button>
-                  </div>
+                  {isOwner && (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => pauseClient(group)}
+                        className={group.isPaused ? 'text-emerald-600 border-emerald-300' : 'text-amber-600 border-amber-300'}
+                      >
+                        {group.isPaused
+                          ? <><Play className="w-3 h-3 mr-1" />Resume</>
+                          : <><Pause className="w-3 h-3 mr-1" />Pause</>}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => deleteClient(group)}
+                        className="text-red-600 border-red-300"
+                      >
+                        <Trash2 className="w-3 h-3 mr-1" />Remove
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid gap-2">
+                  {/* Editor Key */}
                   {group.editorKey && (
                     <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 rounded-lg px-3 py-2">
                       <div className="flex items-center gap-2">
                         <Badge className="bg-blue-100 text-blue-700 text-xs">Editor</Badge>
                         <code className="text-sm font-mono text-slate-700 dark:text-slate-300">{group.editorKey.key}</code>
+                        {group.editorKey.label && (
+                          <span className="text-xs text-slate-400">{group.editorKey.label}</span>
+                        )}
                       </div>
                       <Button variant="ghost" size="sm" onClick={() => copyKey(group.editorKey!.key)}>
-                        {copied === group.editorKey.key ? <CheckCircle className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                        {copied === group.editorKey.key
+                          ? <CheckCircle className="w-4 h-4 text-emerald-500" />
+                          : <Copy className="w-4 h-4" />}
                       </Button>
                     </div>
                   )}
-                  {group.teamKey && (
-                    <div className="flex items-center justify-between bg-emerald-50 dark:bg-emerald-900/20 rounded-lg px-3 py-2">
+
+                  {/* Team Keys */}
+                  {group.teamKeys.map((tk) => (
+                    <div key={tk.key} className="flex items-center justify-between bg-emerald-50 dark:bg-emerald-900/20 rounded-lg px-3 py-2">
                       <div className="flex items-center gap-2">
                         <Badge className="bg-emerald-100 text-emerald-700 text-xs">Team</Badge>
-                        <code className="text-sm font-mono text-slate-700 dark:text-slate-300">{group.teamKey.key}</code>
+                        <code className="text-sm font-mono text-slate-700 dark:text-slate-300">{tk.key}</code>
+                        {tk.label && (
+                          <span className="text-xs text-slate-400">{tk.label}</span>
+                        )}
                       </div>
-                      <Button variant="ghost" size="sm" onClick={() => copyKey(group.teamKey!.key)}>
-                        {copied === group.teamKey.key ? <CheckCircle className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => copyKey(tk.key)}>
+                          {copied === tk.key
+                            ? <CheckCircle className="w-4 h-4 text-emerald-500" />
+                            : <Copy className="w-4 h-4" />}
+                        </Button>
+                        {(isOwner || isEditor) && (
+                          <Button variant="ghost" size="sm" onClick={() => deleteSingleKey(tk.key)}>
+                            <Trash2 className="w-3 h-3 text-red-400" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  )}
+                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -211,6 +313,7 @@ export default function LicenseControl() {
         </div>
       )}
 
+      {/* Owner: Create New Client Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent>
           <DialogHeader>
@@ -233,7 +336,11 @@ export default function LicenseControl() {
                   </p>
                 )}
               </div>
-              <Button onClick={createClient} className="w-full bg-indigo-600 hover:bg-indigo-700" disabled={!clientName.trim()}>
+              <Button
+                onClick={createClient}
+                className="w-full bg-indigo-600 hover:bg-indigo-700"
+                disabled={!clientName.trim()}
+              >
                 Generate Both Keys
               </Button>
             </div>
@@ -252,7 +359,7 @@ export default function LicenseControl() {
                 </div>
                 <div className="flex items-center justify-between bg-emerald-50 rounded-lg px-3 py-2">
                   <div>
-                    <p className="text-xs text-emerald-600 font-medium mb-1">Team Key (All Staff)</p>
+                    <p className="text-xs text-emerald-600 font-medium mb-1">Team Key (Staff)</p>
                     <code className="text-sm font-mono">{newKeys.team}</code>
                   </div>
                   <Button variant="ghost" size="sm" onClick={() => copyKey(newKeys.team)}>
@@ -261,6 +368,59 @@ export default function LicenseControl() {
                 </div>
               </div>
               <Button onClick={() => setIsCreateOpen(false)} className="w-full">Done</Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Editor: Add Team Member Dialog */}
+      <Dialog open={isAddTeamOpen} onOpenChange={setIsAddTeamOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Team Member Key</DialogTitle>
+          </DialogHeader>
+          {!newTeamKey ? (
+            <div className="space-y-4 mt-4">
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 rounded-lg text-sm text-blue-700">
+                This will create a new Team key for brokerage <strong>{brokerage}</strong>. Share it with the new team member.
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Team Member Name (optional)</label>
+                <Input
+                  value={teamMemberName}
+                  onChange={(e) => setTeamMemberName(e.target.value)}
+                  placeholder="e.g. Sarah - Claims Team"
+                />
+              </div>
+              <Button
+                onClick={createTeamKey}
+                className="w-full bg-indigo-600 hover:bg-indigo-700"
+              >
+                <Users className="w-4 h-4 mr-2" />
+                Generate Team Key
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4 mt-4">
+              <p className="text-sm text-emerald-600 font-medium">✅ Team key created! Share with the team member:</p>
+              <div className="flex items-center justify-between bg-emerald-50 rounded-lg px-3 py-3">
+                <div>
+                  <p className="text-xs text-emerald-600 font-medium mb-1">Team Member Key</p>
+                  <code className="text-sm font-mono">{newTeamKey}</code>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => copyKey(newTeamKey)}>
+                  {copied === newTeamKey ? <CheckCircle className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-slate-500">
+                This key gives access to Ask Agent and Browse SOPs for your brokerage only.
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => { setNewTeamKey(null); }}>
+                  Add Another
+                </Button>
+                <Button className="flex-1" onClick={() => setIsAddTeamOpen(false)}>Done</Button>
+              </div>
             </div>
           )}
         </DialogContent>
