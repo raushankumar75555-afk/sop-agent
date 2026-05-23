@@ -28,7 +28,7 @@ export default function ManageSOPs() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [isAuditOpen, setIsAuditOpen] = useState(false);
-  const [auditSopId, setAuditSopId] = useState<string | null>(null);
+  const [_auditSopId, setAuditSopId] = useState<string | null>(null);
   const [auditLog, setAuditLog] = useState<any[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
   const [form, setForm] = useState({ title: '', content: '', category: 'General' });
