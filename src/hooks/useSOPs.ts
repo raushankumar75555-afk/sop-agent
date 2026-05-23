@@ -165,7 +165,7 @@ export function useSOPs() {
       const queryLower = query.toLowerCase();
       const keywords = queryLower.split(' ').filter(k => k.length > 2);
 
-      const scored = data.map(sop => {
+      const scored = data.map((sop: SOP) => {
         const text = `${sop.title} ${sop.content} ${sop.category} ${sop.plain_text || ''}`.toLowerCase();
         let score = 0;
         keywords.forEach(kw => {
@@ -176,9 +176,9 @@ export function useSOPs() {
       });
 
       return scored
-        .filter(s => s.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .map(s => s.sop);
+        .filter((s: { sop: SOP; score: number }) => s.score > 0)
+.sort((a: { sop: SOP; score: number }, b: { sop: SOP; score: number }) => b.score - a.score)
+.map((s: { sop: SOP; score: number }) => s.sop);
     } catch {
       return sops;
     }
