@@ -1,9 +1,9 @@
 // ============================================
 // SOP Agent Pro - Manage SOPs Page
-// With bulk import, audit trail, smart search
+// With bulk import, audit trail, smart search, auto-structure
 // ============================================
 import { useState } from 'react';
-import { Plus, Pencil, Trash2, Save, X, FileText, Search, Upload, History, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+import { Plus, Pencil, Trash2, Save, X, FileText, Search, Upload, History, ChevronDown, ChevronUp, AlertTriangle, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -21,6 +21,7 @@ export default function ManageSOPs() {
   const { sops, loading, saveSOP, deleteSOP, searchSOPs } = useSOPs();
   const sopLockdown = useAuthStore((s) => s.sopLockdown);
   const role = useAuthStore((s) => s.role);
+  const key = useAuthStore((s) => s.key);
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState<SOP[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -36,10 +37,10 @@ export default function ManageSOPs() {
   const [bulkParsed, setBulkParsed] = useState<{ title: string; content: string; category: string }[]>([]);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [autoStructuring, setAutoStructuring] = useState(false);
 
   const canEdit = role === 'owner' || !sopLockdown;
 
-  // Smart search with debounce
   const handleSearch = async (value: string) => {
     setSearch(value);
     if (!value.trim()) {
@@ -83,7 +84,37 @@ export default function ManageSOPs() {
     }
   };
 
-  // Bulk import parser
+  const handleAutoStructure = async () => {
+    if (!form.content.trim()) return;
+    setAutoStructuring(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('anthropic-chat', {
+        body: {
+          key: key || 'internal',
+          messages: [{
+            role: 'user',
+            content: `Reformat this raw SOP text into clean numbered steps. Output ONLY the formatted procedure, nothing else. Use this exact format:
+1. [Step title]: [Clear description of what to do]
+2. [Step title]: [Clear description]
+...and so on.
+Add a line at the end starting with WARNING: if there are any cautions or conditions in the text.
+
+Raw SOP text:
+${form.content}`,
+          }],
+          sop_context: 'You are an expert SOP formatter. Your only job is to reformat raw procedure text into clean, numbered steps. Be concise and direct. Never add generic advice. Only output the formatted steps.',
+          ping: false,
+        },
+      });
+      if (!error && data?.content?.[0]?.text) {
+        setForm(prev => ({ ...prev, content: data.content[0].text }));
+      }
+    } catch (e) {
+      console.error('Auto-structure failed:', e);
+    }
+    setAutoStructuring(false);
+  };
+
   const parseBulkText = () => {
     const sections = bulkText.split(/\n#{1,3}\s+/).filter(Boolean);
     const parsed = sections.map(section => {
@@ -107,7 +138,6 @@ export default function ManageSOPs() {
     setBulkParsed([]);
   };
 
-  // Load audit log for a specific SOP
   const loadAuditLog = async (sopId: string) => {
     setAuditSopId(sopId);
     setAuditLoading(true);
@@ -193,7 +223,7 @@ export default function ManageSOPs() {
         {searching && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">Searching...</div>
         )}
-        {searchResults !== null && (
+        {searchResults !== null && !searching && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-indigo-500 font-medium">
             {searchResults.length} results
           </div>
@@ -222,24 +252,15 @@ export default function ManageSOPs() {
                       <Badge variant="outline" className="text-xs">{sop.category}</Badge>
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      Updated {new Date(sop.updated_at).toLocaleDateString('en-AU')}
+                      Updated {new Date(sop.updated_at).toLocaleDateString()}
                       {sop.created_by && ` · by ${sop.created_by}`}
                     </p>
                   </div>
                   <div className="flex gap-1 flex-shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => loadAuditLog(sop.id)}
-                      title="View change history"
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => loadAuditLog(sop.id)} title="View change history">
                       <History className="w-4 h-4 text-slate-400" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setExpandedId(expandedId === sop.id ? null : sop.id)}
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => setExpandedId(expandedId === sop.id ? null : sop.id)}>
                       {expandedId === sop.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     </Button>
                     {canEdit && (
@@ -255,20 +276,16 @@ export default function ManageSOPs() {
                   </div>
                 </div>
               </CardHeader>
-              {expandedId === sop.id && (
-                <CardContent>
-                  <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+              <CardContent>
+                <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap line-clamp-3">
+                  {sop.content}
+                </p>
+                {expandedId === sop.id && (
+                  <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap mt-2">
                     {sop.content}
                   </p>
-                </CardContent>
-              )}
-              {expandedId !== sop.id && (
-                <CardContent>
-                  <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap line-clamp-3">
-                    {sop.content}
-                  </p>
-                </CardContent>
-              )}
+                )}
+              </CardContent>
             </Card>
           ))}
         </div>
@@ -301,13 +318,28 @@ export default function ManageSOPs() {
               </Select>
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block">Content</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-sm font-medium">Content</label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAutoStructure}
+                  disabled={autoStructuring || !form.content.trim()}
+                  className="h-7 px-3 text-xs text-indigo-600 border-indigo-300 hover:bg-indigo-50"
+                >
+                  <Sparkles className="w-3 h-3 mr-1" />
+                  {autoStructuring ? 'Structuring...' : 'Auto-Structure'}
+                </Button>
+              </div>
               <Textarea
                 value={form.content}
                 onChange={(e) => setForm({ ...form, content: e.target.value })}
-                placeholder="Enter the procedure steps..."
+                placeholder="Paste raw procedure text here, then click Auto-Structure to format it automatically..."
                 rows={14}
               />
+              <p className="text-xs text-slate-400 mt-1">
+                Tip: Paste any raw text and click Auto-Structure to convert it into numbered steps automatically.
+              </p>
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
@@ -341,7 +373,6 @@ export default function ManageSOPs() {
             <Button variant="outline" onClick={parseBulkText} className="w-full">
               Preview Parsed SOPs ({bulkParsed.length} detected)
             </Button>
-
             {bulkParsed.length > 0 && (
               <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
                 {bulkParsed.map((s, i) => (
@@ -355,7 +386,6 @@ export default function ManageSOPs() {
                 ))}
               </div>
             )}
-
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => { setIsBulkOpen(false); setBulkText(''); setBulkParsed([]); }}>
                 Cancel
@@ -400,7 +430,7 @@ export default function ManageSOPs() {
                         </span>
                       </div>
                       <span className="text-xs text-slate-400">
-                        {new Date(log.created_at).toLocaleString('en-AU')}
+                        {new Date(log.created_at).toLocaleString()}
                       </span>
                     </div>
                     {log.action === 'updated' && (
