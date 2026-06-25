@@ -73,3 +73,9 @@
     @apply bg-background text-foreground;
   }
 }
+
+#root {
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+}
