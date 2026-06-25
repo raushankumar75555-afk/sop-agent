@@ -37,7 +37,6 @@ export default function App() {
     return <LoginScreen />;
   }
 
-  // If tool is suspended and user is not owner, show suspended screen
   if (!toolActive && role !== 'owner') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
@@ -82,7 +81,7 @@ export default function App() {
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950">
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 flex flex-col overflow-hidden">
         {renderPage()}
       </main>
     </div>
