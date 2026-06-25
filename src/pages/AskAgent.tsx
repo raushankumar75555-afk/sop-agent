@@ -124,8 +124,8 @@ export default function AskAgent() {
   const categories = ['All', ...Array.from(new Set(sops.map((s) => s.category)))];
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+    <div className="flex flex-col h-full min-h-0">
+      <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shrink-0">
         <div className="flex items-center justify-between mb-3">
           <div>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Ask Agent</h2>
@@ -153,7 +153,7 @@ export default function AskAgent() {
         </div>
       </div>
 
-      <div className="flex-1 p-4 overflow-y-auto" ref={scrollRef}>
+      <div className="flex-1 min-h-0 p-4 overflow-y-auto" ref={scrollRef}>
         {messages.length === 0 && showHints && (
           <div className="space-y-4">
             <div className="flex items-start gap-3 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800">
@@ -223,7 +223,7 @@ export default function AskAgent() {
         )}
       </div>
 
-      <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+      <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shrink-0">
         {selectedImage && (
           <div className="mb-2 relative inline-block">
             <img src={selectedImage} alt="Upload" className="h-16 rounded-lg border border-slate-200" />
