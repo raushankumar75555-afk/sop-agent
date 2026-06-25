@@ -5,7 +5,6 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, ImagePlus, Loader2, User, Bot, Lightbulb, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuthStore } from '@/hooks/useAuth';
@@ -93,13 +92,13 @@ export default function AskAgent() {
       setMessages((prev) => [...prev, { role: 'assistant', content: answer, timestamp: Date.now() }]);
 
       await addHistory({
-  license_key: key,
-  role: role!,
-  label: '',
-  user_tag: userName || key,
-  question: text,
-  answer,
-});
+        license_key: key,
+        role: role!,
+        label: '',
+        user_tag: userName || key,
+        question: text,
+        answer,
+      });
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Failed to get response';
       setError(errMsg);
@@ -154,7 +153,7 @@ export default function AskAgent() {
         </div>
       </div>
 
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+      <div className="flex-1 p-4 overflow-y-auto" ref={scrollRef}>
         {messages.length === 0 && showHints && (
           <div className="space-y-4">
             <div className="flex items-start gap-3 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800">
@@ -222,7 +221,7 @@ export default function AskAgent() {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-      </ScrollArea>
+      </div>
 
       <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
         {selectedImage && (
