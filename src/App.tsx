@@ -81,7 +81,7 @@ export default function App() {
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950">
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {renderPage()}
       </main>
     </div>
